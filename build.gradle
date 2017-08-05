@@ -1,0 +1,41 @@
+group 'rayworks'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile project('MyProcessor')
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+def generatedSources = "$buildDir/generated-src"
+def generatedOutputDir = file("$generatedSources")
+
+compileJava {
+    doFirst {
+        generatedOutputDir.exists() || generatedOutputDir.mkdirs()
+        options.compilerArgs = [
+                '-s', "${generatedSources}"
+        ]
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += generatedOutputDir
+        }
+    }
+}
+
+javadoc {
+    source = sourceSets.main.resources
+}
+compileJava.dependsOn clean
