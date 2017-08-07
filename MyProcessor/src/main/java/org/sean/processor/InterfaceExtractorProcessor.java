@@ -6,14 +6,13 @@
 package org.sean.processor;
 
 import com.google.auto.service.AutoService;
-import com.squareup.javapoet.JavaFile;
-import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
-import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.*;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.*;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
 import javax.tools.Diagnostic;
 import java.io.*;
 import java.util.*;
@@ -21,6 +20,8 @@ import java.util.*;
 @AutoService(Processor.class)
 public class InterfaceExtractorProcessor
         extends AbstractProcessor {
+
+    public static final String TIP_SRC_GENERATED = "AUTO GENERATED SOURCE, DON'T MODIFY IT.";
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
@@ -47,54 +48,69 @@ public class InterfaceExtractorProcessor
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         System.out.println("Test log in InterfaceExtractorProcessor.process");
 
+        Messager messager = processingEnv.getMessager();
         try {
             for (Element e : roundEnv.getElementsAnnotatedWith(ExtractInterface.class)) {
-                if (e != null) {
-                    if (e.getKind().equals(ElementKind.CLASS)) {
-                        TypeElement classElement = (TypeElement) e;
-                        //PackageElement packageElement = (PackageElement) classElement.getEnclosingElement();
+                if (e == null) {
+                    continue;
+                }
 
-                        for (Element enclosed : classElement.getEnclosedElements()) {
-                            if (enclosed.getKind().equals(ElementKind.METHOD)) {
-                                Set<Modifier> modifiers = enclosed.getModifiers();
+                if (e.getKind().equals(ElementKind.CLASS)) {
+                    TypeElement classElement = (TypeElement) e;
 
-                                if (modifiers.contains(Modifier.PUBLIC) &&
-                                        !modifiers.contains(Modifier.STATIC)) {
+                    for (Element enclosed : classElement.getEnclosedElements()) {
+                        if (enclosed.getKind().equals(ElementKind.METHOD)) {
+                            Set<Modifier> modifiers = enclosed.getModifiers();
 
-                                    ExecutableElement execElement = (ExecutableElement) enclosed;
+                            if (modifiers.contains(Modifier.PUBLIC) && !modifiers.contains(Modifier.STATIC)) {
 
-                                    String pkg = classElement.getQualifiedName().toString();
-                                    pkg = pkg.substring(0, pkg.length() - 1);
-                                    String name = e.getAnnotation(ExtractInterface.class).value();
+                                ExecutableElement execElement = (ExecutableElement) enclosed;
 
-                                    String methodName = enclosed.getSimpleName().toString();
+                                String pkg = classElement.getQualifiedName().toString();
+                                pkg = pkg.substring(0, pkg.length() - 1);
 
-                                    MethodSpec spec = MethodSpec.methodBuilder(methodName)
-                                            .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                                            .addParameter(TypeName.INT, "x")
-                                            .addParameter(TypeName.INT, "y")
-                                            .build();
-                                    TypeSpec mainDef = TypeSpec.interfaceBuilder(name)
-                                            .addModifiers(Modifier.PUBLIC)
-                                            .addJavadoc("AUTO GENATRATED, DON'T MODIFY IT.")
-                                            .addMethod(spec)
-                                            .build();
-                                    JavaFile output = JavaFile.builder(pkg, mainDef).build();
-                                    output.writeTo(filer);
+                                String name = e.getAnnotation(ExtractInterface.class).value();
+
+                                String methodName = enclosed.getSimpleName().toString();
+
+                                MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
+                                        .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT);
+                                // https://stackoverflow.com/questions/7763311/how-to-get-parameter-type-from-javax-lang-model-variableelement
+                                // https://github.com/JakeWharton/butterknife/butterknife-compiler/src/main/java/butterknife/compiler/ButterKnifeProcessor.java
+                                List<? extends VariableElement> parameters = execElement.getParameters();
+                                for (VariableElement ve : parameters) {
+                                    TypeMirror methodParameterType = ve.asType();
+                                    if (methodParameterType instanceof TypeVariable) {
+                                        TypeVariable typeVariable = (TypeVariable) methodParameterType;
+                                        methodParameterType = typeVariable.getUpperBound();
+                                    }
+
+                                    builder.addParameter(
+                                            TypeName.get(methodParameterType),
+                                            ve.getSimpleName().toString()
+                                    );
                                 }
+                                MethodSpec spec = builder.build();
 
+                                TypeSpec mainDef = TypeSpec.interfaceBuilder(name)
+                                        .addModifiers(Modifier.PUBLIC)
+                                        .addJavadoc(TIP_SRC_GENERATED)
+                                        .addMethod(spec)
+                                        .build();
+                                JavaFile output = JavaFile.builder(pkg, mainDef).build();
+                                output.writeTo(filer);
                             }
+
                         }
                     }
-
                 }
             }
         } catch (IOException exp) {
             exp.printStackTrace();
-            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "processing the extracting interface");
+            messager.printMessage(Diagnostic.Kind.ERROR, "processing the extracting interface");
         }
 
-        processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "process complete");
+        messager.printMessage(Diagnostic.Kind.NOTE, "process complete");
 
         return false;
     }
