@@ -5,7 +5,7 @@ package org.sean.processor;
 import java.lang.annotation.*;
 
 @Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 public @interface ExtractInterface {
-    public String value();
+    String value();
 } ///:~

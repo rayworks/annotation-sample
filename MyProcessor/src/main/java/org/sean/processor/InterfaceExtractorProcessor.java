@@ -75,6 +75,7 @@ public class InterfaceExtractorProcessor
 
                                 MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName)
                                         .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT);
+
                                 // https://stackoverflow.com/questions/7763311/how-to-get-parameter-type-from-javax-lang-model-variableelement
                                 // https://github.com/JakeWharton/butterknife/butterknife-compiler/src/main/java/butterknife/compiler/ButterKnifeProcessor.java
                                 List<? extends VariableElement> parameters = execElement.getParameters();
